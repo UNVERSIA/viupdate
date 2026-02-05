@@ -23,7 +23,6 @@
         
         .error-detail-box { background: #fff3cd; border: 1px solid #ffecb5; border-radius: 6px; padding: 15px; margin-top: 15px; text-align: left; font-size: 0.9rem; }
         .error-val { font-family: Consolas, Monaco, 'Courier New', monospace; background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 3px; font-weight: bold; }
-        .bread-crumb { color: #6c757d; font-size: 0.85rem; margin-bottom: 5px; }
     </style>
 </head>
 <body>
@@ -198,10 +197,10 @@
                         <div v-if="errorDebugInfo.type === 'folder_parent'">
                             <div class="row">
                                 <div class="col-md-12 mb-1">
-                                    <div class="text-danger">❌ 当前所在文件夹: <span class="error-val">{{ errorDebugInfo.actualFolder }}</span></div>
+                                    <div class="text-danger">❌ 当前文件夹 (Level 2): <span class="error-val">{{ errorDebugInfo.actualFolder }}</span></div>
                                 </div>
                                 <div class="col-md-12">
-                                    <div class="text-success">✅ 应由文件名推导为: <span class="error-val">{{ errorDebugInfo.expectedFolder }}</span></div>
+                                    <div class="text-success">✅ 期望命名为: <span class="error-val">{{ errorDebugInfo.expectedFolder }}</span></div>
                                 </div>
                             </div>
                             <div class="mt-2 text-muted small fst-italic">
@@ -212,14 +211,14 @@
                         <div v-if="errorDebugInfo.type === 'folder_grandparent'">
                             <div class="row">
                                 <div class="col-md-12 mb-1">
-                                    <div class="text-danger">❌ 上一级文件夹 (ID层): <span class="error-val">{{ errorDebugInfo.actualFolder }}</span></div>
+                                    <div class="text-danger">❌ 上一级文件夹 (Level 1): <span class="error-val">{{ errorDebugInfo.actualFolder }}</span></div>
                                 </div>
                                 <div class="col-md-12">
-                                    <div class="text-success">✅ 应由文件名推导为: <span class="error-val">{{ errorDebugInfo.expectedFolder }}</span></div>
+                                    <div class="text-success">✅ 期望命名为: <span class="error-val">{{ errorDebugInfo.expectedFolder }}</span></div>
                                 </div>
                             </div>
                             <div class="mt-2 text-muted small fst-italic">
-                                * 规则：[ID-日期] 文件夹必须放在名为 [ID] 的文件夹内。
+                                * 规则：[ID-日期] 文件夹必须放在名为 [ID] 的文件夹内 (例如 XX001)。
                             </div>
                         </div>
                     </div>
@@ -292,22 +291,24 @@ createApp({
                 const results = [];
                 const folderDurationMap = new Map();
                 const folderValidDurationMap = new Map();
-                // 1. Regex 更新：兼容任意前缀ID (例如 XX001)
-                // Group 1: ID, Group 2: Date, Group 3: Seq
+                // 校验规则: ID(任意字符)-日期(6位)-序号(2位)
                 const pattern = /^(.+)-(\d{6})-(\d{2})\.(mp4|mov|avi|mkv)$/i;
                 let foundVideos = false;
 
-                // 2. 递归扫描函数更新：增加 pathStack 参数，用于存储父级文件夹信息
-                // pathStack 是一个数组，存储从根目录到当前目录的 handle 信息
+                // 递归扫描函数: 修复了路径追踪逻辑
+                // dirHandle: 当前正在处理的文件夹句柄
+                // pathStack: 到达当前文件夹之前的所有父级句柄列表
                 const scan = async (dirHandle, pathStack = []) => {
                     for await (const entry of dirHandle.values()) {
                         if (entry.kind === 'directory') {
-                            // 递归时，将当前文件夹加入栈中
-                            await scan(entry, [...pathStack, entry]);
+                            // 【关键修复】: 
+                            // 递归时，将“当前文件夹 (dirHandle)”作为“子文件夹 (entry)”的父级加入栈中
+                            // 之前的错误代码是传入 [...pathStack, entry]，导致栈里存的是子文件夹自己，无法查上一级
+                            await scan(entry, [...pathStack, dirHandle]);
                         } else if (entry.kind === 'file' && /\.(mp4|mov|avi|mkv)$/i.test(entry.name)) {
                             foundVideos = true;
                             
-                            // A. 校验文件名格式
+                            // 1. 校验文件名格式
                             const match = entry.name.match(pattern);
                             const currentFolderName = dirHandle.name; 
 
@@ -322,11 +323,11 @@ createApp({
                                 throw new Error("STRUCTURE_ERROR");
                             }
 
-                            const fileId = match[1];   // 例如: XX001
-                            const fileDate = match[2]; // 例如: 251201
-                            const expectedFolderName = `${fileId}-${fileDate}`; // 期望: XX001-251201
+                            const fileId = match[1];   // e.g. XX001
+                            const fileDate = match[2]; // e.g. 251201
+                            const expectedFolderName = `${fileId}-${fileDate}`; // Expected Level 2
 
-                            // B. 校验 Level 2 (直接父文件夹)
+                            // 2. 校验 Level 2 (当前文件所在的文件夹)
                             if(currentFolderName !== expectedFolderName) {
                                 errorDebugInfo.value = {
                                     type: 'folder_parent',
@@ -338,22 +339,20 @@ createApp({
                                 throw new Error("STRUCTURE_ERROR");
                             }
 
-                            // C. 校验 Level 1 (爷爷文件夹 - 如果存在于上传路径中)
-                            // 只有当 pathStack 里有元素时，说明我们至少在两层深
+                            // 3. 校验 Level 1 (爷爷文件夹 - 即 Level 2 的父级)
+                            // 只有当 pathStack 里有内容时才校验 (即用户选的根目录不是 Level 2 本身)
                             if (pathStack.length > 0) {
-                                const grandParentEntry = pathStack[pathStack.length - 1]; // 栈顶是直接父级的父级吗？不对
-                                // pathStack 存储的是路径。
-                                // 如果当前我们在 loop dirHandle (ID-Date)，那么 dirHandle 的父级就是 pathStack 的最后一个元素。
-                                
-                                const grandParentName = grandParentEntry.name;
-                                const expectedGrandParentName = fileId; // 期望: XX001
+                                // 栈顶元素就是当前文件夹 (Level 2) 的父文件夹 (Level 1)
+                                const parentEntry = pathStack[pathStack.length - 1]; 
+                                const parentName = parentEntry.name;
+                                const expectedParentName = fileId; // Expected Level 1: XX001
 
-                                if (grandParentName !== expectedGrandParentName) {
+                                if (parentName !== expectedParentName) {
                                     errorDebugInfo.value = {
                                         type: 'folder_grandparent',
                                         fileName: entry.name,
-                                        actualFolder: grandParentName,
-                                        expectedFolder: expectedGrandParentName
+                                        actualFolder: parentName,
+                                        expectedFolder: expectedParentName
                                     };
                                     new bootstrap.Modal(document.getElementById('namingErrorModal')).show();
                                     throw new Error("STRUCTURE_ERROR");
@@ -375,7 +374,7 @@ createApp({
                     }
                 };
 
-                // 启动扫描：传入根目录，初始栈为空
+                // 启动扫描
                 await scan(currentDirHandle, []);
 
                 if(!foundVideos) throw new Error("未找到视频文件");
