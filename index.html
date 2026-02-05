@@ -21,9 +21,9 @@
         .login-input-custom::placeholder { font-size: 0.95rem; opacity: 0.6; }
         .login-icon-box { width: 80px; height: 80px; background: #e7f1ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto; }
         
-        /* 新增样式：用于显示错误对比 */
         .error-detail-box { background: #fff3cd; border: 1px solid #ffecb5; border-radius: 6px; padding: 15px; margin-top: 15px; text-align: left; font-size: 0.9rem; }
         .error-val { font-family: Consolas, Monaco, 'Courier New', monospace; background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 3px; font-weight: bold; }
+        .bread-crumb { color: #6c757d; font-size: 0.85rem; margin-bottom: 5px; }
     </style>
 </head>
 <body>
@@ -183,33 +183,48 @@
                     <h4 class="text-danger mb-3">文件位置或命名不符合规范</h4>
                     
                     <div v-if="errorDebugInfo" class="error-detail-box">
-                        <h6 class="text-dark fw-bold border-bottom pb-2 mb-2"><i class="bi bi-bug"></i> 系统读取详情 (请检查以下差异)</h6>
+                        <h6 class="text-dark fw-bold border-bottom pb-2 mb-2"><i class="bi bi-bug"></i> 错误详情诊断</h6>
                         
                         <div class="mb-2">
-                            <span class="text-muted">检测到的文件:</span> 
+                            <span class="text-muted">当前检测文件:</span> 
                             <span class="error-val">{{ errorDebugInfo.fileName }}</span>
-                        </div>
-
-                        <div v-if="errorDebugInfo.type === 'folder'">
-                            <div class="row">
-                                <div class="col-md-12 mb-1 text-danger">
-                                    ❌ <strong>当前所在的文件夹名:</strong> <span class="error-val">{{ errorDebugInfo.actualFolder }}</span>
-                                </div>
-                                <div class="col-md-12 text-success">
-                                    ✅ <strong>系统要求的文件夹名:</strong> <span class="error-val">{{ errorDebugInfo.expectedFolder }}</span>
-                                </div>
-                            </div>
-                            <div class="mt-2 text-muted small fst-italic">
-                                * 提示：文件夹名称必须严格等于文件名中的 [ID-日期] 部分，请检查是否存在空格、拼写错误或层级错误。
-                            </div>
                         </div>
 
                         <div v-if="errorDebugInfo.type === 'filename'">
                             <div class="text-danger">❌ 文件名格式无法识别</div>
-                            <div class="text-muted small mt-1">要求格式: ID-日期-序号.后缀 (例如: User01-260202-01.mp4)</div>
+                            <div class="text-muted small mt-1">要求格式: ID-日期-序号.后缀 <br>(例如: XX001-251201-01.mp4)</div>
+                        </div>
+
+                        <div v-if="errorDebugInfo.type === 'folder_parent'">
+                            <div class="row">
+                                <div class="col-md-12 mb-1">
+                                    <div class="text-danger">❌ 当前所在文件夹: <span class="error-val">{{ errorDebugInfo.actualFolder }}</span></div>
+                                </div>
+                                <div class="col-md-12">
+                                    <div class="text-success">✅ 应由文件名推导为: <span class="error-val">{{ errorDebugInfo.expectedFolder }}</span></div>
+                                </div>
+                            </div>
+                            <div class="mt-2 text-muted small fst-italic">
+                                * 规则：视频必须放在名为 [ID-日期] 的文件夹内。
+                            </div>
+                        </div>
+
+                        <div v-if="errorDebugInfo.type === 'folder_grandparent'">
+                            <div class="row">
+                                <div class="col-md-12 mb-1">
+                                    <div class="text-danger">❌ 上一级文件夹 (ID层): <span class="error-val">{{ errorDebugInfo.actualFolder }}</span></div>
+                                </div>
+                                <div class="col-md-12">
+                                    <div class="text-success">✅ 应由文件名推导为: <span class="error-val">{{ errorDebugInfo.expectedFolder }}</span></div>
+                                </div>
+                            </div>
+                            <div class="mt-2 text-muted small fst-italic">
+                                * 规则：[ID-日期] 文件夹必须放在名为 [ID] 的文件夹内。
+                            </div>
                         </div>
                     </div>
-                    <img src="static/structure_guide.png" class="img-fluid border rounded shadow-sm mt-3" style="max-height: 250px;">
+
+                    <img src="static/structure_guide.png" class="img-fluid border rounded shadow-sm mt-3" style="max-height: 250px;" alt="结构示意图">
                 </div>
                 <div class="modal-footer justify-content-center"><button class="btn btn-primary px-5" data-bs-dismiss="modal">好的，我去检查</button></div>
             </div>
@@ -243,9 +258,7 @@ createApp({
         const globalStats = ref({ avg_duration_str: '00:00:00', avg_passed: false, qualified_days: 0 });
         const historyData = ref(JSON.parse(localStorage.getItem('qc_history') || '[]'));
         
-        // 新增：用于存储具体的报错诊断信息
         const errorDebugInfo = ref(null);
-        
         let currentDirHandle = null;
 
         onMounted(() => { if(!user.value) nextTick(() => loginField.value?.focus()); });
@@ -272,61 +285,85 @@ createApp({
             
             scanning.value = true;
             showResult.value = false;
-            errorDebugInfo.value = null; // 重置错误信息
+            errorDebugInfo.value = null;
             statusText.value = '<span class="text-primary">正在扫描分析...</span>';
             
             try {
                 const results = [];
                 const folderDurationMap = new Map();
                 const folderValidDurationMap = new Map();
+                // 1. Regex 更新：兼容任意前缀ID (例如 XX001)
+                // Group 1: ID, Group 2: Date, Group 3: Seq
                 const pattern = /^(.+)-(\d{6})-(\d{2})\.(mp4|mov|avi|mkv)$/i;
                 let foundVideos = false;
 
-                //递归检查目录结构
-                const scan = async (handle) => {
-                    for await (const entry of handle.values()) {
+                // 2. 递归扫描函数更新：增加 pathStack 参数，用于存储父级文件夹信息
+                // pathStack 是一个数组，存储从根目录到当前目录的 handle 信息
+                const scan = async (dirHandle, pathStack = []) => {
+                    for await (const entry of dirHandle.values()) {
                         if (entry.kind === 'directory') {
-                            await scan(entry);
+                            // 递归时，将当前文件夹加入栈中
+                            await scan(entry, [...pathStack, entry]);
                         } else if (entry.kind === 'file' && /\.(mp4|mov|avi|mkv)$/i.test(entry.name)) {
                             foundVideos = true;
-                            const match = entry.name.match(pattern);
                             
-                            const currentFolderName = handle.name; 
+                            // A. 校验文件名格式
+                            const match = entry.name.match(pattern);
+                            const currentFolderName = dirHandle.name; 
 
-                            // 校验 1：文件名正则格式
                             if(!match) {
                                 errorDebugInfo.value = {
                                     type: 'filename',
                                     fileName: entry.name,
                                     actualFolder: currentFolderName,
-                                    reason: 'Filename format error'
+                                    reason: 'Format Error'
                                 };
                                 new bootstrap.Modal(document.getElementById('namingErrorModal')).show();
                                 throw new Error("STRUCTURE_ERROR");
                             }
 
-                            const fileId = match[1];
-                            const fileDate = match[2];
-                            const expectedFolderName = `${fileId}-${fileDate}`;
+                            const fileId = match[1];   // 例如: XX001
+                            const fileDate = match[2]; // 例如: 251201
+                            const expectedFolderName = `${fileId}-${fileDate}`; // 期望: XX001-251201
 
-                            // 校验 2：父文件夹名 必须等于 ID-DATE
-                            // 增加调试信息：如果当前文件夹名不匹配，记录下来
+                            // B. 校验 Level 2 (直接父文件夹)
                             if(currentFolderName !== expectedFolderName) {
                                 errorDebugInfo.value = {
-                                    type: 'folder',
+                                    type: 'folder_parent',
                                     fileName: entry.name,
-                                    actualFolder: currentFolderName, // 实际读取到的
-                                    expectedFolder: expectedFolderName, // 期望得到的
-                                    reason: 'Folder mismatch'
+                                    actualFolder: currentFolderName,
+                                    expectedFolder: expectedFolderName
                                 };
                                 new bootstrap.Modal(document.getElementById('namingErrorModal')).show();
                                 throw new Error("STRUCTURE_ERROR");
                             }
 
+                            // C. 校验 Level 1 (爷爷文件夹 - 如果存在于上传路径中)
+                            // 只有当 pathStack 里有元素时，说明我们至少在两层深
+                            if (pathStack.length > 0) {
+                                const grandParentEntry = pathStack[pathStack.length - 1]; // 栈顶是直接父级的父级吗？不对
+                                // pathStack 存储的是路径。
+                                // 如果当前我们在 loop dirHandle (ID-Date)，那么 dirHandle 的父级就是 pathStack 的最后一个元素。
+                                
+                                const grandParentName = grandParentEntry.name;
+                                const expectedGrandParentName = fileId; // 期望: XX001
+
+                                if (grandParentName !== expectedGrandParentName) {
+                                    errorDebugInfo.value = {
+                                        type: 'folder_grandparent',
+                                        fileName: entry.name,
+                                        actualFolder: grandParentName,
+                                        expectedFolder: expectedGrandParentName
+                                    };
+                                    new bootstrap.Modal(document.getElementById('namingErrorModal')).show();
+                                    throw new Error("STRUCTURE_ERROR");
+                                }
+                            }
+
+                            // 校验通过，开始分析
                             const info = await analyzeVideo(await entry.getFile());
                             results.push(info);
 
-                            //找到直接父文件夹
                             const folderKey = currentFolderName;
                             folderDurationMap.set(folderKey, (folderDurationMap.get(folderKey) || 0) + info.duration_sec);
                             if(info.passed) {
@@ -338,7 +375,8 @@ createApp({
                     }
                 };
 
-                await scan(currentDirHandle);
+                // 启动扫描：传入根目录，初始栈为空
+                await scan(currentDirHandle, []);
 
                 if(!foundVideos) throw new Error("未找到视频文件");
 
@@ -429,7 +467,7 @@ createApp({
 
         return { 
             user, loginInput, loginField, view, browsing, scanning, pickedPath, statusText, showResult, folderResults, globalStats, historyData, summary,
-            errorDebugInfo, // 暴露给模板
+            errorDebugInfo, 
             login, logout, handleBrowse, startScan,
             passList: computed(() => videoResults.value.filter(r=>r.passed)),
             failList: computed(() => videoResults.value.filter(r=>!r.passed)),
