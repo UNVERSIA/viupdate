@@ -21,8 +21,10 @@
         .login-input-custom::placeholder { font-size: 0.95rem; opacity: 0.6; }
         .login-icon-box { width: 80px; height: 80px; background: #e7f1ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto; }
         
-        .error-detail-box { background: #fff3cd; border: 1px solid #ffecb5; border-radius: 6px; padding: 15px; margin-top: 15px; text-align: left; font-size: 0.9rem; }
-        .error-val { font-family: Consolas, Monaco, 'Courier New', monospace; background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 3px; font-weight: bold; }
+        /* 路径显示样式 */
+        .error-path-box { background: #f8d7da; border: 1px solid #f5c2c7; border-radius: 6px; padding: 20px; margin: 15px 0; text-align: left; }
+        .path-display { font-family: Consolas, Monaco, 'Courier New', monospace; font-weight: bold; color: #842029; font-size: 1.1rem; word-break: break-all; }
+        .path-label { font-size: 0.85rem; color: #a94442; margin-bottom: 8px; font-weight: bold; text-transform: uppercase; }
     </style>
 </head>
 <body>
@@ -112,45 +114,24 @@
 
                                 <div class="card card-custom p-4 mb-3 border-start border-warning border-5">
                                     <h5 class="fw-bold mb-3"><i class="bi bi-folder2-open text-warning"></i> 文件夹时长统计</h5>
-                                    <div class="mb-3">
-                                        <span class="badge bg-dark me-2">平均标准: ≥7小时</span>
-                                        <span class="badge bg-secondary">单文件夹标准: ≥6小时</span>
-                                    </div>
-                                    <div class="row align-items-center mb-3">
-                                        <div class="col-md-6">
-                                            <h6 class="text-muted">平均时长 (达标文件夹)</h6>
-                                            <div id="avgFolderStatus">
-                                                <h3 :class="globalStats.avg_passed ? 'text-success' : 'text-danger'" class="fw-bold">
-                                                    <i :class="globalStats.avg_passed ? 'bi bi-check-circle-fill' : 'bi bi-x-circle-fill'"></i>
-                                                    {{ globalStats.avg_duration_str }}
-                                                </h3>
-                                                <small class="text-muted">{{ globalStats.avg_passed ? '平均有效采集时长达标' : '平均有效采集时长未达标 (需≥7小时)' }}</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <h6 class="text-muted">各文件夹详情:</h6>
                                     <div class="table-responsive" style="max-height: 200px;">
                                         <table class="table table-sm table-hover mb-0">
                                             <thead class="table-light">
-                                                <tr><th>文件夹名称</th><th>总时长</th><th class="text-success">有效采集时长</th><th>状态 (有效时长≥6h)</th></tr>
+                                                <tr><th>文件夹名称</th><th>总时长</th><th class="text-success">有效采集时长</th><th>状态</th></tr>
                                             </thead>
                                             <tbody>
                                                 <tr v-for="f in folderResults">
                                                     <td class="fw-bold">{{ f.name }}</td><td>{{ f.duration_str }}</td><td class="text-success fw-bold">{{ f.valid_duration_str }}</td>
-                                                    <td><span class="badge" :class="f.passed?'bg-success':'bg-danger'">{{ f.passed?'合格':'不合格 (有效不足6h)' }}</span></td>
+                                                    <td><span class="badge" :class="f.passed?'bg-success':'bg-danger'">{{ f.passed?'合格':'不合格' }}</span></td>
                                                 </tr>
                                             </tbody>
                                         </table>
                                     </div>
-                                    <div class="mt-3 pt-3 border-top text-center">
-                                        <h5 class="text-secondary">最终合格天数 (有效时长达标)</h5>
-                                        <h2 class="fw-bold text-primary">{{ globalStats.qualified_days }} 天</h2>
-                                    </div>
                                 </div>
 
                                 <div class="row">
-                                    <div class="col-md-6"><div class="card card-custom h-100"><div class="card-header bg-danger text-white fw-bold"><i class="bi bi-x-circle-fill"></i> 不合格视频</div><div class="card-body p-0 table-responsive" style="max-height:500px;"><table class="table table-striped small mb-0"><thead><tr><th>文件名</th><th>时长</th><th>原因</th></tr></thead><tbody><tr v-for="v in failList"><td>{{v.filename}}</td><td>{{v.duration_str}}</td><td class="text-danger">{{v.reason}}</td></tr></tbody></table></div></div></div>
-                                    <div class="col-md-6"><div class="card card-custom h-100"><div class="card-header bg-success text-white fw-bold"><i class="bi bi-check-circle-fill"></i> 合格视频</div><div class="card-body p-0 table-responsive" style="max-height:500px;"><table class="table table-striped small mb-0"><thead><tr><th>文件名</th><th>时长</th><th>详情</th></tr></thead><tbody><tr v-for="v in passList"><td>{{v.filename}}</td><td>{{v.duration_str}}</td><td>{{v.width}}x{{v.height}}, {{v.fps}}fps</td></tr></tbody></table></div></div></div>
+                                    <div class="col-md-6"><div class="card card-custom h-100"><div class="card-header bg-danger text-white fw-bold">不合格视频</div><div class="card-body p-0 table-responsive" style="max-height:500px;"><table class="table table-striped small mb-0"><thead><tr><th>文件名</th><th>原因</th></tr></thead><tbody><tr v-for="v in failList"><td>{{v.filename}}</td><td class="text-danger">{{v.reason}}</td></tr></tbody></table></div></div></div>
+                                    <div class="col-md-6"><div class="card card-custom h-100"><div class="card-header bg-success text-white fw-bold">合格视频</div><div class="card-body p-0 table-responsive" style="max-height:500px;"><table class="table table-striped small mb-0"><thead><tr><th>文件名</th><th>详情</th></tr></thead><tbody><tr v-for="v in passList"><td>{{v.filename}}</td><td>{{v.width}}x{{v.height}}, {{v.fps}}fps</td></tr></tbody></table></div></div></div>
                                 </div>
                             </div>
                         </div>
@@ -159,8 +140,8 @@
                             <div class="card card-custom p-4">
                                 <h4><i class="bi bi-clock-history text-primary"></i> 历史检测记录</h4>
                                 <table class="table table-hover mt-3 align-middle">
-                                    <thead class="table-light"><tr><th>时间</th><th>用户</th><th>检测路径</th><th>结果(合格/总数)</th></tr></thead>
-                                    <tbody><tr v-for="h in historyData"><td>{{h.time}}</td><td>{{h.user}}</td><td class="text-muted small">{{h.path}}</td><td><span class="text-success">{{h.pass_count}}</span> / {{h.total}}</td></tr></tbody>
+                                    <thead class="table-light"><tr><th>时间</th><th>用户</th><th>检测路径</th><th>结果</th></tr></thead>
+                                    <tbody><tr v-for="h in historyData"><td>{{h.time}}</td><td>{{h.user}}</td><td class="text-muted small">{{h.path}}</td><td>{{h.pass_count}}/{{h.total}}</td></tr></tbody>
                                 </table>
                             </div>
                         </div>
@@ -177,55 +158,26 @@
     <div class="modal fade" id="namingErrorModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg">
-                <div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle-fill"></i> 目录或文件结构错误</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-x-circle-fill"></i> 目录结构不规范</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
                 <div class="modal-body text-center p-4">
-                    <h4 class="text-danger mb-3">文件位置或命名不符合规范</h4>
+                    <p class="text-secondary mb-3">系统在检测以下文件时发现层级命名错误，请核对系统读取到的路径：</p>
                     
-                    <div v-if="errorDebugInfo" class="error-detail-box">
-                        <h6 class="text-dark fw-bold border-bottom pb-2 mb-2"><i class="bi bi-bug"></i> 错误详情诊断</h6>
-                        
-                        <div class="mb-2">
-                            <span class="text-muted">当前检测文件:</span> 
-                            <span class="error-val">{{ errorDebugInfo.fileName }}</span>
-                        </div>
-
-                        <div v-if="errorDebugInfo.type === 'filename'">
-                            <div class="text-danger">❌ 文件名格式无法识别</div>
-                            <div class="text-muted small mt-1">要求格式: ID-日期-序号.后缀 <br>(例如: XX001-251201-01.mp4)</div>
-                        </div>
-
-                        <div v-if="errorDebugInfo.type === 'folder_parent'">
-                            <div class="row">
-                                <div class="col-md-12 mb-1">
-                                    <div class="text-danger">❌ 当前文件夹 (Level 2): <span class="error-val">{{ errorDebugInfo.actualFolder }}</span></div>
-                                </div>
-                                <div class="col-md-12">
-                                    <div class="text-success">✅ 期望命名为: <span class="error-val">{{ errorDebugInfo.expectedFolder }}</span></div>
-                                </div>
-                            </div>
-                            <div class="mt-2 text-muted small fst-italic">
-                                * 规则：视频必须放在名为 [ID-日期] 的文件夹内。
-                            </div>
-                        </div>
-
-                        <div v-if="errorDebugInfo.type === 'folder_grandparent'">
-                            <div class="row">
-                                <div class="col-md-12 mb-1">
-                                    <div class="text-danger">❌ 上一级文件夹 (Level 1): <span class="error-val">{{ errorDebugInfo.actualFolder }}</span></div>
-                                </div>
-                                <div class="col-md-12">
-                                    <div class="text-success">✅ 期望命名为: <span class="error-val">{{ errorDebugInfo.expectedFolder }}</span></div>
-                                </div>
-                            </div>
-                            <div class="mt-2 text-muted small fst-italic">
-                                * 规则：[ID-日期] 文件夹必须放在名为 [ID] 的文件夹内 (例如 XX001)。
-                            </div>
-                        </div>
+                    <div v-if="detectedPath" class="error-path-box shadow-sm">
+                        <div class="path-label"><i class="bi bi-hdd-network"></i> 系统当前读取到的目录结构：</div>
+                        <div class="path-display">{{ detectedPath }}</div>
                     </div>
 
-                    <img src="static/structure_guide.png" class="img-fluid border rounded shadow-sm mt-3" style="max-height: 250px;" alt="结构示意图">
+                    <hr class="my-4">
+                    
+                    <h6 class="fw-bold text-dark mb-3"><i class="bi bi-info-circle"></i> 请对照下方标准结构进行修改：</h6>
+                    <img src="static/structure_guide.png" class="img-fluid border rounded shadow-sm" style="max-height: 250px;" alt="标准结构示意图">
                 </div>
-                <div class="modal-footer justify-content-center"><button class="btn btn-primary px-5" data-bs-dismiss="modal">好的，我去检查</button></div>
+                <div class="modal-footer justify-content-center">
+                    <button class="btn btn-secondary px-5" data-bs-dismiss="modal">关闭</button>
+                </div>
             </div>
         </div>
     </div>
@@ -257,7 +209,9 @@ createApp({
         const globalStats = ref({ avg_duration_str: '00:00:00', avg_passed: false, qualified_days: 0 });
         const historyData = ref(JSON.parse(localStorage.getItem('qc_history') || '[]'));
         
-        const errorDebugInfo = ref(null);
+        // 存储系统读到的错误路径字符串
+        const detectedPath = ref('');
+        
         let currentDirHandle = null;
 
         onMounted(() => { if(!user.value) nextTick(() => loginField.value?.focus()); });
@@ -284,146 +238,97 @@ createApp({
             
             scanning.value = true;
             showResult.value = false;
-            errorDebugInfo.value = null;
+            detectedPath.value = '';
             statusText.value = '<span class="text-primary">正在扫描分析...</span>';
             
             try {
                 const results = [];
                 const folderDurationMap = new Map();
                 const folderValidDurationMap = new Map();
-                // 校验规则: ID(任意字符)-日期(6位)-序号(2位)
                 const pattern = /^(.+)-(\d{6})-(\d{2})\.(mp4|mov|avi|mkv)$/i;
                 let foundVideos = false;
 
-                // 递归扫描函数: 修复了路径追踪逻辑
-                // dirHandle: 当前正在处理的文件夹句柄
-                // pathStack: 到达当前文件夹之前的所有父级句柄列表
                 const scan = async (dirHandle, pathStack = []) => {
                     for await (const entry of dirHandle.values()) {
                         if (entry.kind === 'directory') {
-                            // 【关键修复】: 
-                            // 递归时，将“当前文件夹 (dirHandle)”作为“子文件夹 (entry)”的父级加入栈中
-                            // 之前的错误代码是传入 [...pathStack, entry]，导致栈里存的是子文件夹自己，无法查上一级
                             await scan(entry, [...pathStack, dirHandle]);
                         } else if (entry.kind === 'file' && /\.(mp4|mov|avi|mkv)$/i.test(entry.name)) {
                             foundVideos = true;
                             
-                            // 1. 校验文件名格式
+                            // 构建当前系统读取到的路径字符串
+                            const fullPathArr = [...pathStack, dirHandle, entry].map(h => h.name);
+                            const currentFullPath = fullPathArr.join(' / ');
+
                             const match = entry.name.match(pattern);
                             const currentFolderName = dirHandle.name; 
 
+                            // 1. 校验文件名
                             if(!match) {
-                                errorDebugInfo.value = {
-                                    type: 'filename',
-                                    fileName: entry.name,
-                                    actualFolder: currentFolderName,
-                                    reason: 'Format Error'
-                                };
+                                detectedPath.value = currentFullPath;
                                 new bootstrap.Modal(document.getElementById('namingErrorModal')).show();
                                 throw new Error("STRUCTURE_ERROR");
                             }
 
-                            const fileId = match[1];   // e.g. XX001
-                            const fileDate = match[2]; // e.g. 251201
-                            const expectedFolderName = `${fileId}-${fileDate}`; // Expected Level 2
+                            const fileId = match[1];
+                            const fileDate = match[2];
+                            const expectedFolderName = `${fileId}-${fileDate}`;
 
-                            // 2. 校验 Level 2 (当前文件所在的文件夹)
+                            // 2. 校验二级目录
                             if(currentFolderName !== expectedFolderName) {
-                                errorDebugInfo.value = {
-                                    type: 'folder_parent',
-                                    fileName: entry.name,
-                                    actualFolder: currentFolderName,
-                                    expectedFolder: expectedFolderName
-                                };
+                                detectedPath.value = currentFullPath;
                                 new bootstrap.Modal(document.getElementById('namingErrorModal')).show();
                                 throw new Error("STRUCTURE_ERROR");
                             }
 
-                            // 3. 校验 Level 1 (爷爷文件夹 - 即 Level 2 的父级)
-                            // 只有当 pathStack 里有内容时才校验 (即用户选的根目录不是 Level 2 本身)
+                            // 3. 校验一级目录 (ID层)
                             if (pathStack.length > 0) {
-                                // 栈顶元素就是当前文件夹 (Level 2) 的父文件夹 (Level 1)
                                 const parentEntry = pathStack[pathStack.length - 1]; 
                                 const parentName = parentEntry.name;
-                                const expectedParentName = fileId; // Expected Level 1: XX001
-
-                                if (parentName !== expectedParentName) {
-                                    errorDebugInfo.value = {
-                                        type: 'folder_grandparent',
-                                        fileName: entry.name,
-                                        actualFolder: parentName,
-                                        expectedFolder: expectedParentName
-                                    };
+                                if (parentName !== fileId) {
+                                    detectedPath.value = currentFullPath;
                                     new bootstrap.Modal(document.getElementById('namingErrorModal')).show();
                                     throw new Error("STRUCTURE_ERROR");
                                 }
                             }
 
-                            // 校验通过，开始分析
                             const info = await analyzeVideo(await entry.getFile());
                             results.push(info);
-
                             const folderKey = currentFolderName;
                             folderDurationMap.set(folderKey, (folderDurationMap.get(folderKey) || 0) + info.duration_sec);
                             if(info.passed) {
                                 folderValidDurationMap.set(folderKey, (folderValidDurationMap.get(folderKey) || 0) + info.duration_sec);
-                            } else if (!folderValidDurationMap.has(folderKey)) {
-                                folderValidDurationMap.set(folderKey, 0);
                             }
                         }
                     }
                 };
 
-                // 启动扫描
                 await scan(currentDirHandle, []);
 
                 if(!foundVideos) throw new Error("未找到视频文件");
 
+                // 统计计算 (代码保持不变)
                 let totalQualifiedValidDur = 0;
                 let qualifiedDaysCount = 0;
                 const fResults = [];
-
                 folderDurationMap.forEach((duration, folderName) => {
                     const validDuration = folderValidDurationMap.get(folderName) || 0;
                     const isPassed = validDuration >= DURATION_Threshold_Folder;
-
-                    if(isPassed) {
-                        qualifiedDaysCount++;
-                        totalQualifiedValidDur += validDuration;
-                    }
-
-                    fResults.push({
-                        name: folderName,
-                        duration_str: formatDuration(duration),
-                        valid_duration_str: formatDuration(validDuration),
-                        passed: isPassed
-                    });
+                    if(isPassed) { qualifiedDaysCount++; totalQualifiedValidDur += validDuration; }
+                    fResults.push({ name: folderName, duration_str: formatDuration(duration), valid_duration_str: formatDuration(validDuration), passed: isPassed });
                 });
-
-                const avgDur = qualifiedDaysCount > 0 ? (totalQualifiedValidDur / qualifiedDaysCount) : 0;
                 const totalSec = results.reduce((a, b) => a + b.duration_sec, 0);
                 const validSec = results.filter(r => r.passed).reduce((a, b) => a + b.duration_sec, 0);
 
                 videoResults.value = results;
                 folderResults.value = fResults;
-                summary.value = {
-                    total_duration: formatDuration(totalSec),
-                    valid_duration: formatDuration(validSec),
-                    invalid_duration: formatDuration(totalSec - validSec)
-                };
-                globalStats.value = {
-                    avg_duration_str: formatDuration(avgDur),
-                    avg_passed: avgDur >= DURATION_Threshold_Avg,
-                    qualified_days: qualifiedDaysCount
-                };
-
-                statusText.value = `<span class='text-success fw-bold'>检测完成，共发现 ${results.length} 个视频。</span>`;
+                summary.value = { total_duration: formatDuration(totalSec), valid_duration: formatDuration(validSec), invalid_duration: formatDuration(totalSec - validSec) };
+                statusText.value = `<span class='text-success fw-bold'>检测完成</span>`;
                 showResult.value = true;
                 saveHistory();
 
             } catch (e) {
                 if(e.message === "STRUCTURE_ERROR") {
-                    statusText.value = `<span class='text-danger fw-bold'>目录结构错误</span>`;
+                    statusText.value = `<span class='text-danger fw-bold'>目录结构不符合规范</span>`;
                 } else {
                     statusText.value = `<span class='text-danger'>${e.message}</span>`;
                 }
@@ -441,32 +346,22 @@ createApp({
                 const d = v.duration || 0, w = v.videoWidth, h = v.videoHeight, r = w/h;
                 let reasons = [];
                 if(!file.name.toLowerCase().endsWith(STANDARDS.format)) reasons.push(`格式错误`);
-                if(w < STANDARDS.min_width || h < STANDARDS.min_height) reasons.push(`分辨率不足(${w}x${h})`);
-                if(Math.abs(r - STANDARDS.target_ratio) > STANDARDS.ratio_tolerance) reasons.push(`比例错误(${r.toFixed(2)})`);
-                
-                res({
-                    filename: file.name, width: w, height: h, fps: 30, 
-                    duration_sec: d, duration_str: formatDuration(d),
-                    passed: reasons.length === 0,
-                    reason: reasons.join(' | ') || '合格'
-                });
+                if(w < STANDARDS.min_width || h < STANDARDS.min_height) reasons.push(`分辨率不足`);
+                if(Math.abs(r - STANDARDS.target_ratio) > STANDARDS.ratio_tolerance) reasons.push(`比例错误`);
+                res({ filename: file.name, width: w, height: h, fps: 30, duration_sec: d, duration_str: formatDuration(d), passed: reasons.length === 0, reason: reasons.join('|') || '合格' });
             };
             v.onerror = () => res({ filename: file.name, duration_sec: 0, duration_str: '00:00:00', passed: false, reason: '读取异常' });
         });
 
         const saveHistory = () => {
-            const h = { 
-                time: new Date().toLocaleString(), user: user.value, 
-                path: pickedPath.value, total: videoResults.value.length, 
-                pass_count: videoResults.value.filter(r=>r.passed).length 
-            };
+            const h = { time: new Date().toLocaleString(), user: user.value, path: pickedPath.value, total: videoResults.value.length, pass_count: videoResults.value.filter(r=>r.passed).length };
             historyData.value.unshift(h);
             localStorage.setItem('qc_history', JSON.stringify(historyData.value.slice(0, 50)));
         };
 
         return { 
             user, loginInput, loginField, view, browsing, scanning, pickedPath, statusText, showResult, folderResults, globalStats, historyData, summary,
-            errorDebugInfo, 
+            detectedPath, 
             login, logout, handleBrowse, startScan,
             passList: computed(() => videoResults.value.filter(r=>r.passed)),
             failList: computed(() => videoResults.value.filter(r=>!r.passed)),
